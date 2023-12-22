@@ -24,11 +24,14 @@ app.use(cookieParser());
 app.use('/api/user', authRouter);
 app.use('/api/location', locationRouter)
 
+app.get('/', (req, res) => {
+    res.send('Hello, World!');
+  });
 
 app.use(notFound);
 app.use(errorHandler);
 
 
-app.listen(PORT,'192.168.29.98', () => {
+app.listen(PORT, () => {
     console.log(`Server is starting on ${PORT}`)
 });
