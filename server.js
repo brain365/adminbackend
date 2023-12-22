@@ -12,7 +12,7 @@ const cookieParser = require('cookie-parser');
 dbConnect();
 
 app.use(cors({
-    origin: ["*"],
+    origin: ["http://localhost:5173/"],
      methods:["POST", "GET", "DELETE"],
      credentials: true
 }));
