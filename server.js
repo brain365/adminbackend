@@ -7,12 +7,13 @@ const dotenv = require('dotenv').config();
 const PORT = process.env.PORT || 4000 ;
 const authRouter = require("./routes/authRoute")
 const locationRouter = require('./routes/locationRoute')
+const employeeRouter = require('./routes/employeeRoute')
 const { notFound, errorHandler } = require('./middlerwares/errorHandlers');
 const cookieParser = require('cookie-parser');
 dbConnect();
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://adminfrontend-five.vercel.app/');
+    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     next();
@@ -26,10 +27,8 @@ app.use(cookieParser());
 
 app.use('/api/user', authRouter);
 app.use('/api/location', locationRouter)
-
-app.get('/', (req, res) => {
-    res.send('Hello, World!');
-  });
+// employee
+app.use('/api/employee', employeeRouter)
 
 app.use(notFound);
 app.use(errorHandler);

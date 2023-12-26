@@ -25,32 +25,47 @@ const createUser = asyncHandler(async (req, res) => {
 const loginUserCtrl = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const findUser = await User.findOne({ email });
-  if (findUser && (await findUser.isPasswordMatched(password))) {
-    const refreshToken = genrateRefreshToken(findUser?._id);
-    const updateuser = await User.findByIdAndUpdate(
-      findUser.id,
-      {
-        refreshToken: refreshToken,
-      },
-      {
-        new: true,
+
+  if (findUser) {
+    const currentDate = new Date();
+    const restrictionDate = findUser.restrictionDate;
+
+    if (!restrictionDate || restrictionDate > currentDate) {
+      if (await findUser.isPasswordMatched(password)) {
+        const refreshToken = genrateRefreshToken(findUser?._id);
+        const updateUser = await User.findByIdAndUpdate(
+          findUser.id,
+          {
+            refreshToken: refreshToken,
+          },
+          {
+            new: true,
+          }
+        );
+
+        res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          maxAge: 72 * 60 * 60 * 1000,
+        });
+
+        res.json({
+          _id: findUser?._id,
+          firstname: findUser?.firstname,
+          lastname: findUser?.lastname,
+          phone: findUser?.phone,
+          email: findUser?.email,
+          role: findUser?.role,
+          restrictionDate: findUser?.restrictionDate,
+          token: genrateToken(findUser?._id),
+        });
+      } else {
+        throw new Error("Invalid Credentials");
       }
-    );
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      maxAge: 72 * 60 * 60 * 1000,
-    });
-    res.json({
-      _id: findUser?._id,
-      firstname: findUser?.firstname,
-      lastname: findUser?.lastname,
-      phone: findUser?.phone,
-      email: findUser?.email,
-      role: findUser?.role,
-      token: genrateToken(findUser?._id),
-    });
+    } else {
+      throw new Error("Restricted");
+    }
   } else {
-    throw new Error("Invalid Crendantials");
+    throw new Error("User not found");
   }
 });
 
@@ -92,12 +107,13 @@ const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongodbId(id);
   try {
-    const getaUser = await User.findById(id).populate("location").populate("machines");
+    const getaUser = await User.findById(id).populate("location").populate("machines").populate("employees");
     if (getaUser) {
       const numofmachines = getaUser.machines.length;
+      getaUser.numofmachines = numofmachines;
+      const updatedUser = await getaUser.save();
       res.json({
-        getaUser,
-        numofmachines
+        getaUser: updatedUser
       });
     } else {
       res.status(404).json({ message: 'User not found' });

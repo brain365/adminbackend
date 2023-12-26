@@ -2,7 +2,7 @@ const mongoose = require("mongoose"); // Erase if already required
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 // Declare the Schema of the Mongo model
-var userSchema = new mongoose.Schema(
+var employeeSchema = new mongoose.Schema(
   {
     firstname: {
       type: String,
@@ -21,39 +21,12 @@ var userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    address: {
-      type: String,
-      required: true,
-    },
     password: {
       type: String,
       required: true,
     },
-    role: {
-      type: String,
-      default: "admin",
-    },
-    location: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Location',
-    }],
-    machines: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Machine',
-    }],
-    numofmachines: {
-      type:Number,
-      default: 0 
-    },
-    employees: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee"
-    }],
     refreshToken: {
       type: String,
-    },
-    restrictionDate: {
-      type: Date
     }
   },
   {
@@ -61,17 +34,17 @@ var userSchema = new mongoose.Schema(
   }
 );
 
-userSchema.pre("save", async function (next) {
+employeeSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
     next();
   }
   const salt = await bcrypt.genSaltSync(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
-userSchema.methods.isPasswordMatched = async function (enteredPassword) {
+employeeSchema.methods.isPasswordMatched = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
-userSchema.methods.createPasswordResetToken = async function () {
+employeeSchema.methods.createPasswordResetToken = async function () {
   const resettoken = crypto.randomBytes(32).toString("hex");
   this.passwordResetToken = crypto
     .createHash("sha256")
@@ -83,4 +56,4 @@ userSchema.methods.createPasswordResetToken = async function () {
 
 
 //Export the model
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model("Employee", employeeSchema);

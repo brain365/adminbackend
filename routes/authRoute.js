@@ -16,7 +16,7 @@ const {
 const { authMiddleware, isAdmin } = require('../middlerwares/authMiddleware');
 const router = express.Router();
 
-router.post('/register', createUser);
+router.post('/register',authMiddleware, isAdmin, createUser);
 
 router.post('/login', loginUserCtrl);
 
