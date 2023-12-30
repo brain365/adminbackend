@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/:userId', authMiddleware, getAllEmployeesForUser)
 
-router.post('/register',authMiddleware, addEmployeeToAdmin);
+router.post('/register/:userId',authMiddleware, addEmployeeToAdmin);
 router.post('/login', loginEmployeeCtrl);
 router.get('/:userId/:employeeId', authMiddleware, getEmployeebyId)
 

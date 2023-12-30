@@ -7,11 +7,12 @@ const {
     deleteaUser,
     updatedUser,
     getAllUsers,
-    addMachineToUser,
-    updateMachineForUser,
+    addMachineToUserLocation,
+    updateMachineInUserLocation,
     deleteMachineFromUser,
     getMachinesOfUser,
     getMachinebyId,
+    getMachinesByLocationId,
 } = require('../controllers/userCtrl');
 const { authMiddleware, isAdmin } = require('../middlerwares/authMiddleware');
 const router = express.Router();
@@ -33,13 +34,12 @@ router.put('/edit-user/:id', authMiddleware, isAdmin, updatedUser);
 
 
 // machine
-router.post('/addmachine', authMiddleware, addMachineToUser)
+router.post('/addmachine/:userId', authMiddleware, addMachineToUserLocation)
 router.get('/machines/:userId', authMiddleware, getMachinesOfUser)
-router.post('/edit-machine/:userId/machines/:machineId', authMiddleware, updateMachineForUser)
-router.delete('/delete-machine/:userId/machines/:machineId', authMiddleware, deleteMachineFromUser)
+router.get('/machines/location/:locationId', authMiddleware, getMachinesByLocationId)
+router.put('/edit-machine/:userId/:locationId/:machineId', authMiddleware, updateMachineInUserLocation)
+router.delete('/delete-machine/:userId/machines/:locationId/location/:machineId', authMiddleware, deleteMachineFromUser)
 router.get('/machine/:userId/:machineId', authMiddleware, getMachinebyId)
-
-
 
 
 module.exports = router;    

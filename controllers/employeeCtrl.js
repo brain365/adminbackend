@@ -8,25 +8,41 @@ const User = require('../models/userModel')
 
 
 const addEmployeeToAdmin = asyncHandler(async (req, res) => {
-    const {_id} = req.admin; // Assuming you extract user ID from the bearer token
-  
-    try {
-      const user = await User.findById(_id);
-      if (!user) {
-        return res.status(404).json({ message: 'Admin not found' });
-      }
-      const { firstname, lastname, email, phone, password} = req.body;
-      const newEmployee = new Employee({ firstname, lastname, email, phone, password});
-      await newEmployee.save();
-  
-      // Add the new location's ID to the user's profile
-      user.employees.push(newEmployee._id);
-      await user.save();
-  
-      res.json({ message: 'New Employee added to user successfully', user });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
+  try {
+    const {userId} = req.params; // Extract userId from the request params
+    const {
+      firstname,
+      lastname,
+      phone,
+      email,
+      address,
+      password
+    } = req.body; // Assuming the request contains these fields in JSON format
+
+    // Create a new Employee instance using the Employee model
+    const newEmployee = new Employee({
+      firstname,
+      lastname,
+      phone,
+      email,
+      address,
+      password
+    });
+
+    // Save the new employee to the database
+    await newEmployee.save();
+
+    // Find the user by userId and push the newly created employee's ID into the 'employees' array
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $push: { employees: newEmployee._id } }, // Add the employee's ID to the 'employees' array
+      { new: true }
+    );
+
+    res.status(201).json({ message: 'Employee created and added to the user', user });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to add employee to the user', error: err.message });
+  }
   });
 
 const loginEmployeeCtrl = asyncHandler(async (req, res) => {
@@ -95,28 +111,39 @@ const getEmployeebyId = asyncHandler(async (req, res) => {
 
 // update employee
 const updateEmployee = asyncHandler(async (req, res) => {
-    const { userId, employeeId } = req.params;
-    try {
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'Admin not found' });
-      }
-  
-      const updatedEmployee = await Employee.findOneAndUpdate(
-        { _id: employeeId, _id: { $in: user.employees } }, // Ensure machine belongs to the user
-        { $set: { firstname: req.body.firstname, lastname: req.body.lastname, email: req.body.email, phone: req.body.phone, password: req.body.password } },
-        { new: true }
+  const { userId, employeeId } = req.params;
+  try {
+      const updatedEmployee = await Employee.findByIdAndUpdate(
+          employeeId,
+          {
+              $set: {
+                  firstname: req.body.firstname,
+                  lastname: req.body.lastname,
+                  address: req.body.address,
+                  phone: req.body.phone,
+                  password: req.body.password
+              }
+          },
+          { new: true }
       );
-  
+
       if (!updatedEmployee) {
-        return res.status(404).json({ message: 'Employee not found' });
+          return res.status(404).json({ message: 'Employee not found' });
       }
-  
+
+      // Check if the updated employee ID belongs to the specified user
+      const user = await User.findOne({ _id: userId, employees: employeeId });
+      if (!user) {
+          return res.status(404).json({ message: 'Employee does not belong to the user' });
+      }
+
       res.json({ message: 'Employee details updated successfully', employee: updatedEmployee });
-    } catch (error) {
+  } catch (error) {
       res.status(500).json({ error: error.message });
-    }
-  });
+  }
+});
+
+
 
 // delete a employee
 const deleteEmployee = asyncHandler(async (req, res) => {
@@ -145,14 +172,11 @@ const deleteEmployee = asyncHandler(async (req, res) => {
 
 // search and all Employee
 const getAllEmployeesForUser = asyncHandler(async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed in the URL
-  const { searchemployee } = req.query;
+  const { userId } = req.params;
+  const { searchEmployee } = req.query;
 
   try {
-    const user = await User.findById(userId).populate({
-      path: 'employees',
-      select: 'firstname lastname email phone'
-    });
+    const user = await User.findById(userId).populate('employees');
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -160,9 +184,9 @@ const getAllEmployeesForUser = asyncHandler(async (req, res) => {
 
     let employees = user.employees;
 
-    if (searchemployee) {
-      employees = employees.filter(employees =>
-        employees.firstname.toLowerCase().includes(searchemployee?.toLowerCase())
+    if (searchEmployee) {
+      employees = employees.filter(employee =>
+        employee.firstname.toLowerCase().includes(searchEmployee.toLowerCase())
       );
     }
 
@@ -171,5 +195,7 @@ const getAllEmployeesForUser = asyncHandler(async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
 
 module.exports = { addEmployeeToAdmin, loginEmployeeCtrl, getEmployeebyId, updateEmployee, deleteEmployee, getAllEmployeesForUser }

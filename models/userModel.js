@@ -37,17 +37,9 @@ var userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location',
     }],
-    machines: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Machine',
-    }],
-    numofmachines: {
-      type:Number,
-      default: 0 
-    },
     employees: [{
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee"
+      ref: 'Employee',
     }],
     refreshToken: {
       type: String,

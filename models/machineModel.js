@@ -3,15 +3,19 @@ const mongoose = require("mongoose"); // Erase if already required
 // Declare the Schema of the Mongo model
 const machineSchema = new mongoose.Schema(
     {
-        machineName: {
+        machineNumber: {
             type: String,
-            required: true,
+            // required: true,
         },
         serialNumber: {
             type: String,
-            required: true,
+            // required: true,
             unique: true,
         },
+        employees: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Employee"
+        }]
     },
     {
         timestamps: true,

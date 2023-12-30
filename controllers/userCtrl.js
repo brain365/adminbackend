@@ -7,7 +7,7 @@ const Location = require('../models/locationModel')
 const Machine = require('../models/machineModel')
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-
+const mongoose = require('mongoose')
 
 // create admin and superadmin
 const createUser = asyncHandler(async (req, res) => {
@@ -107,10 +107,15 @@ const getaUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   validateMongodbId(id);
   try {
-    const getaUser = await User.findById(id).populate("location").populate("machines").populate("employees");
+    const getaUser = await User.findById(id).populate({
+      path: 'location',
+      populate: {
+        path: 'machines',
+        model: 'Machine',
+      }
+    })
+    .exec();
     if (getaUser) {
-      const numofmachines = getaUser.machines.length;
-      getaUser.numofmachines = numofmachines;
       const updatedUser = await getaUser.save();
       res.json({
         getaUser: updatedUser
@@ -192,97 +197,205 @@ const getAllUsers = asyncHandler(async (req, res) => {
 });
 
 // user add machine
-const addMachineToUser = asyncHandler(async (req, res) => {
-  const {_id} = req.admin; // Assuming you extract user ID from the bearer token
+const addMachineToUserLocation = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const { locationId, employeeIds } = req.body; // Get locationId and employeeIds from the request body
 
   try {
-    const user = await User.findById(_id);
+    const user = await User.findById(userId).populate('location');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Create a new machine using the Machine model
+    const location = user.location.find(loc => loc._id.toString() === locationId);
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found for the user' });
+    }
+
     const { machineName, serialNumber } = req.body;
     const newMachine = new Machine({ machineName, serialNumber });
+
+    newMachine.employees = employeeIds; 
+
     await newMachine.save();
 
-    // Add the new machine's ID to the user's profile
-    user.machines.push(newMachine._id);
-    (await user.save()).populate();
+    location.machines = location.machines || [];
+    location.machines.push(newMachine._id);
 
-    res.json({ message: 'New machine added to user successfully', user });
+    if (location instanceof mongoose.Document) {
+      await location.save();
+      const updatedUser = await User.findById(userId)
+        .populate({
+          path: 'location',
+          populate: {
+            path: 'machines',
+            model: 'Machine'
+          }
+        })
+        .exec();
+      res.json({ message: 'New machine added to location successfully', updatedUser });
+    } else {
+      return res.status(500).json({ error: 'Error saving location' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 
+
 // update machine
-const updateMachineForUser = asyncHandler(async (req, res) => {
-  const { userId, machineId } = req.params;
+const updateMachineInUserLocation = asyncHandler(async (req, res) => {
+  const { userId, machineId, locationId } = req.params; // Extract locationId from params
+  const { machineName, serialNumber, employeeIds } = req.body; // No need to add locationId
 
   try {
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const updatedMachine = await Machine.findOneAndUpdate(
-      { _id: machineId, _id: { $in: user.machines } }, // Ensure machine belongs to the user
-      { $set: { machineName: req.body.machineName, serialNumber: req.body.serialNumber } },
+    const updatedMachine = await Machine.findByIdAndUpdate(
+      machineId,
+      { machineName, serialNumber, location: locationId }, // Set locationId for the machine
       { new: true }
     );
 
     if (!updatedMachine) {
-      return res.status(404).json({ message: 'Machine not found for this user' });
+      return res.status(404).json({ message: 'Machine not found' });
     }
 
-    res.json({ message: 'Machine details updated successfully', machine: updatedMachine });
+    // Update employees for the machine
+    updatedMachine.employees = employeeIds; // Assuming employeeIds is an array of employee IDs
+
+    await updatedMachine.save();
+
+    const updatedUser = await User.findById(userId)
+      .populate({
+        path: 'location',
+        populate: {
+          path: 'machines',
+          model: 'Machine'
+        }
+      })
+      .exec();
+
+    res.json({ message: 'Machine details updated successfully', user: updatedUser });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+
 
 
 
 // delete machine
 const deleteMachineFromUser = asyncHandler(async (req, res) => {
-  const { userId, machineId } = req.params; // Assuming userId and machineId are passed in the URL
+  const { userId, locationId, machineId } = req.params;
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('location');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    const isValidMachineId = user.machines.some(id => id.toString() === machineId);
-    if (!isValidMachineId) {
-      return res.status(404).json({ message: 'Machine not found for this user' });
+
+    const location = user.location.find(loc => loc._id.toString() === locationId);
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found for the user' });
     }
 
-    user.machines = user.machines.filter(id => id.toString() !== machineId);
-    await user.save();
+    const machineIndex = location.machines.findIndex(mach => mach._id.toString() === machineId);
+    if (machineIndex === -1) {
+      return res.status(404).json({ message: 'Machine not found in this location' });
+    }
 
-    res.json({ message: 'Machine deleted successfully', user });
+    const deletedMachine = location.machines[machineIndex];
+    location.machines.splice(machineIndex, 1);
+
+    await Machine.findByIdAndDelete(machineId); // Remove machine from the database
+
+    await location.save();
+
+    const updatedUser = await User.findById(userId)
+      .populate({
+        path: 'location',
+        populate: {
+          path: 'machines',
+          model: 'Machine'
+        }
+      })
+      .exec();
+
+    res.json({ message: 'Machine deleted successfully', updatedUser });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+
+
 
 // get a machines 
 const getMachinesOfUser = asyncHandler(async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed in the URL
+  const { userId } = req.params;
 
   try {
-    const user = await User.findById(userId).populate('machines');
-    if (!user) {
+    const userWithLocationsAndMachines = await User.findById(userId)
+      .populate({
+        path: 'location',
+        populate: {
+          path: 'machines',
+          model: 'Machine',
+          populate: {
+            path: 'employees',
+            model: 'Employee'
+          }
+        }
+      })
+      .exec();
+
+    if (!userWithLocationsAndMachines) {
       return res.status(404).json({ message: 'User not found' });
     }
+    const updatedUser = await User.findById(userId)
+        .populate({
+          path: 'location',
+          populate: {
+            path: 'machines',
+            model: 'Machine',
+            populate: {
+              path: 'employees',
+              model: 'Employee'
+            }
+          }
+        })
+        .exec();
 
-    res.json({ machines: user.machines });
+    res.json({ machines: updatedUser.location });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+
+// get location machine detail
+const getMachinesByLocationId = asyncHandler(async (req, res) => {
+  const { locationId } = req.params; 
+
+  try {
+    const location = await Location.findById(locationId).populate('machines').exec();
+
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found' });
+    }
+
+    const machinesOfLocation = location.machines;
+
+    res.json({ machinesOfLocation });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 
 // get location by id
 const getMachinebyId = asyncHandler(async (req, res) => {
@@ -298,8 +411,6 @@ const getMachinebyId = asyncHandler(async (req, res) => {
     if (!machine) {
       return res.status(404).json({ message: 'machine not found' });
     }
-
-    // Check if the location belongs to the user
     if (!user.machines.includes(machineId)) {
       return res.status(403).json({ message: 'machine does not belong to the user' });
     }
@@ -311,5 +422,5 @@ const getMachinebyId = asyncHandler(async (req, res) => {
 })
 
 
-module.exports = { createUser, loginUserCtrl, loginAdmin, getAllUsers, getaUser, deleteaUser, updatedUser, addMachineToUser, updateMachineForUser,
-   deleteMachineFromUser, getMachinesOfUser, getMachinebyId }
+module.exports = { createUser, loginUserCtrl, loginAdmin, getAllUsers, getaUser, deleteaUser, updatedUser, addMachineToUserLocation, updateMachineInUserLocation,
+   deleteMachineFromUser, getMachinesOfUser, getMachinebyId, getMachinesByLocationId }
