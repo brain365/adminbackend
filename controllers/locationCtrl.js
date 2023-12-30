@@ -169,11 +169,18 @@ const getAllLocationsForUser = asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(userId).populate({
       path: 'location',
-      select: 'locationname address percentage machines createdAt updatedAt', // Include 'machines' field for aggregation
+      select: 'locationname address percentage machines createdAt updatedAt employees', // Include 'machines' field for aggregation
       populate: {
         path: 'machines',
         model: 'Machine',
         select: '_id' // Select only '_id' to count machines
+      }
+    }).populate({
+      path: 'location',
+      populate: {
+        path: 'employees', // Populate employees within each location
+        model: 'Employee', // Replace 'Employee' with your employee model name
+        select: 'firstname lastname' // Select the fields you want for employees
       }
     });
 
@@ -200,6 +207,7 @@ const getAllLocationsForUser = asyncHandler(async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 
